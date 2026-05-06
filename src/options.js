@@ -19,6 +19,7 @@ async function sendCommand(cmd) {
   return browser.runtime.sendMessage(cmd);
 }
 
+// MAC's assignManager.js getSiteStoreKey() builds keys as `hostname + port` (no colon).
 function cleanHostname(input) {
   let s = input.trim().toLowerCase();
   try {
@@ -402,8 +403,10 @@ async function handleImport(file) {
     neverAsk: r.neverAsk !== undefined ? r.neverAsk : true,
   }));
 
+  if (!confirm(`Import ${importRules.length} rules?`)) return;
+
   const mode = confirm(
-    `Import ${importRules.length} rules.\n\nOK = Replace all existing rules with this file\nCancel = Merge (add new, update existing)`
+    "Replace all existing rules?\n\nOK = Replace (delete all, then import)\nCancel = Merge (add new, update existing)"
   ) ? "replace" : "merge";
 
   const resp = await sendCommand({ cmd: "import", rules: importRules, mode });

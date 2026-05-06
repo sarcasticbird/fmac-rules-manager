@@ -1,9 +1,6 @@
 package main
 
-import (
-	"fmt"
-	"log"
-)
+import "fmt"
 
 type cmdContext struct {
 	dbPath     string
@@ -112,49 +109,18 @@ func handleExport(ctx *cmdContext) Response {
 	return Response{OK: true, Data: ExportData{Rules: rules}}
 }
 
-func handleImport(ctx *cmdContext, importRules []RuleSpec, mode string) Response {
+func handleImport(ctx *cmdContext, specs []RuleSpec, mode string) Response {
 	existing, blobs, err := readRules(ctx.dbPath)
 	if err != nil {
 		return Response{OK: false, Error: fmt.Sprintf("reading rules: %v", err)}
 	}
 
-	if mode == "replace" {
-		for _, r := range existing {
-			if err := deleteRule(ctx.dbPath, r.Site); err != nil {
-				log.Printf("import replace: failed to delete %s: %v", r.Site, err)
-			}
-		}
+	res, err := importRules(ctx.dbPath, specs, existing, blobs, mode == "replace")
+	if err != nil {
+		return Response{OK: false, Error: fmt.Sprintf("import failed: %v", err)}
 	}
 
-	existingMap := make(map[string]bool)
-	if mode != "replace" {
-		for _, r := range existing {
-			existingMap[r.Site] = true
-		}
-	}
-
-	var added, updated, skipped int
-	for _, r := range importRules {
-		if r.Site == "" || r.UserContextID <= 0 {
-			skipped++
-			continue
-		}
-
-		err := addRule(ctx.dbPath, r.Site, r.UserContextID, r.NeverAsk, blobs)
-		if err != nil {
-			log.Printf("import: failed to add %s: %v", r.Site, err)
-			skipped++
-			continue
-		}
-
-		if existingMap[r.Site] {
-			updated++
-		} else {
-			added++
-		}
-	}
-
-	return Response{OK: true, Data: ImportResult{Added: added, Updated: updated, Skipped: skipped}}
+	return Response{OK: true, Data: ImportResult{Added: res.added, Updated: res.updated, Skipped: res.skipped}}
 }
 
 func dispatch(req Request) Response {

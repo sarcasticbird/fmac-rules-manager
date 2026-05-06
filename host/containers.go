@@ -49,4 +49,3 @@ func readContainers(profileDir string) ([]Container, error) {
 	}
 	return containers, nil
 }
-
