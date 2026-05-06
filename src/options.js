@@ -11,6 +11,10 @@ let selectedSites = new Set();
 let sortField = "site";
 let sortAsc = true;
 
+function escapeHTML(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 async function sendCommand(cmd) {
   return browser.runtime.sendMessage(cmd);
 }
@@ -93,14 +97,15 @@ function renderTable() {
     const tr = document.createElement("tr");
     if (selectedSites.has(rule.site)) tr.classList.add("selected");
 
+    const safeSite = escapeHTML(rule.site);
     tr.innerHTML = `
-      <td class="col-check"><input type="checkbox" data-site="${rule.site}" ${selectedSites.has(rule.site) ? "checked" : ""}></td>
-      <td class="col-site">${rule.site}</td>
+      <td class="col-check"><input type="checkbox" data-site="${safeSite}" ${selectedSites.has(rule.site) ? "checked" : ""}></td>
+      <td class="col-site">${safeSite}</td>
       <td class="col-container">${containerBadge(rule.userContextId)}</td>
       <td class="col-neverask">${rule.neverAsk ? "Yes" : "No"}</td>
       <td class="col-actions">
-        <button class="action-btn edit" data-site="${rule.site}" title="Edit">Edit</button>
-        <button class="action-btn delete" data-site="${rule.site}" title="Delete">Del</button>
+        <button class="action-btn edit" data-site="${safeSite}" title="Edit">Edit</button>
+        <button class="action-btn delete" data-site="${safeSite}" title="Delete">Del</button>
       </td>
     `;
     tbody.appendChild(tr);

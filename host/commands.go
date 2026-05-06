@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"path/filepath"
 	"strings"
 	"time"
@@ -80,6 +81,10 @@ func handleList(ctx *cmdContext) Response {
 }
 
 func handleAdd(ctx *cmdContext, site string, userContextID int, neverAsk bool) Response {
+	if site == "" || userContextID <= 0 {
+		return Response{OK: false, Error: "site and userContextId are required"}
+	}
+
 	_, blobs, err := readRules(ctx.dbPath)
 	if err != nil {
 		return Response{OK: false, Error: fmt.Sprintf("reading rules: %v", err)}
@@ -95,6 +100,10 @@ func handleAdd(ctx *cmdContext, site string, userContextID int, neverAsk bool) R
 }
 
 func handleUpdate(ctx *cmdContext, site string, userContextID int, neverAsk bool) Response {
+	if site == "" || userContextID <= 0 {
+		return Response{OK: false, Error: "site and userContextId are required"}
+	}
+
 	_, blobs, err := readRules(ctx.dbPath)
 	if err != nil {
 		return Response{OK: false, Error: fmt.Sprintf("reading rules: %v", err)}
@@ -175,6 +184,7 @@ func handleImport(ctx *cmdContext, importRules []RuleSpec) Response {
 
 		err := addRule(ctx.dbPath, r.Site, r.UserContextID, r.NeverAsk, blobs)
 		if err != nil {
+			log.Printf("import: failed to add %s: %v", r.Site, err)
 			skipped++
 			continue
 		}
