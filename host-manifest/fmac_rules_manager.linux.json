@@ -1,0 +1,7 @@
+{
+  "name": "fmac_rules_manager",
+  "description": "Native host for Container Rules Manager — reads/writes MAC site rules",
+  "path": "/usr/local/bin/fmac-rules-manager-host",
+  "type": "stdio",
+  "allowed_extensions": ["fmac-rules-manager@sarcasticbird.com"]
+}
