@@ -51,7 +51,7 @@ function populateContainerDropdowns() {
 
 function containerBadge(ctxId) {
   const c = containersByID[ctxId];
-  const name = c ? c.name : `Unknown (${ctxId})`;
+  const name = c ? escapeHTML(c.name) : `Unknown (${ctxId})`;
   const color = c ? CONTAINER_COLORS[c.color] || "#7c7c7d" : "#7c7c7d";
   return `<span class="container-badge"><span class="container-dot" style="background:${color}"></span>${name}</span>`;
 }

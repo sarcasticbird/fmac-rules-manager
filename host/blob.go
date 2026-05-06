@@ -181,7 +181,7 @@ func toggleNeverAsk(blob []byte, neverAsk bool) ([]byte, error) {
 	}
 
 	afterMarker := pos + len(markerNeverAsk)
-	if afterMarker+1 >= len(blob) {
+	if afterMarker+8 > len(blob) {
 		return nil, fmt.Errorf("neverAsk: blob too short")
 	}
 	currentTrue := blob[afterMarker+1] != 0x00
