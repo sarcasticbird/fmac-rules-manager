@@ -63,7 +63,11 @@ function getActiveContainerId() {
 function populateContainerDropdowns() {
   const activeSel = document.getElementById("active-container");
   const prev = activeSel.value;
-  activeSel.innerHTML = '<option value="">All containers</option>';
+  activeSel.textContent = "";
+  const allOpt = document.createElement("option");
+  allOpt.value = "";
+  allOpt.textContent = "All containers";
+  activeSel.appendChild(allOpt);
   containers.forEach((c) => {
     const opt = document.createElement("option");
     opt.value = c.userContextId;
@@ -73,7 +77,7 @@ function populateContainerDropdowns() {
   activeSel.value = prev;
 
   const bulkSel = document.getElementById("bulk-reassign-container");
-  bulkSel.innerHTML = "";
+  bulkSel.textContent = "";
   containers.forEach((c) => {
     const opt = document.createElement("option");
     opt.value = c.userContextId;
@@ -109,9 +113,16 @@ function updateContainerView() {
 
 function containerBadge(ctxId) {
   const c = containersByID[ctxId];
-  const name = c ? escapeHTML(c.name) : `Unknown (${ctxId})`;
+  const name = c ? c.name : `Unknown (${ctxId})`;
   const color = c ? CONTAINER_COLORS[c.color] || "#7c7c7d" : "#7c7c7d";
-  return `<span class="container-badge"><span class="container-dot" style="background:${color}"></span>${name}</span>`;
+  const span = document.createElement("span");
+  span.className = "container-badge";
+  const dot = document.createElement("span");
+  dot.className = "container-dot";
+  dot.style.background = color;
+  span.appendChild(dot);
+  span.appendChild(document.createTextNode(name));
+  return span;
 }
 
 function renderTable() {
@@ -146,7 +157,7 @@ function renderTable() {
     return sortAsc ? cmp : -cmp;
   });
 
-  tbody.innerHTML = "";
+  tbody.textContent = "";
 
   if (filtered.length === 0) {
     if (containerFilter && terms.length === 0) {
@@ -168,17 +179,41 @@ function renderTable() {
     const tr = document.createElement("tr");
     if (selectedSites.has(rule.site)) tr.classList.add("selected");
 
-    const safeSite = escapeHTML(rule.site);
-    tr.innerHTML = `
-      <td class="col-check"><input type="checkbox" data-site="${safeSite}" ${selectedSites.has(rule.site) ? "checked" : ""}></td>
-      <td class="col-site">${safeSite}</td>
-      <td class="col-container">${containerBadge(rule.userContextId)}</td>
-      <td class="col-neverask">${rule.neverAsk ? "Yes" : "No"}</td>
-      <td class="col-actions">
-        <button class="action-btn edit" data-site="${safeSite}" title="Edit">Edit</button>
-        <button class="action-btn delete" data-site="${safeSite}" title="Delete">Del</button>
-      </td>
-    `;
+    const tdCheck = tr.insertCell();
+    tdCheck.className = "col-check";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.dataset.site = rule.site;
+    cb.checked = selectedSites.has(rule.site);
+    tdCheck.appendChild(cb);
+
+    const tdSite = tr.insertCell();
+    tdSite.className = "col-site";
+    tdSite.textContent = rule.site;
+
+    const tdContainer = tr.insertCell();
+    tdContainer.className = "col-container";
+    tdContainer.appendChild(containerBadge(rule.userContextId));
+
+    const tdNever = tr.insertCell();
+    tdNever.className = "col-neverask";
+    tdNever.textContent = rule.neverAsk ? "Yes" : "No";
+
+    const tdActions = tr.insertCell();
+    tdActions.className = "col-actions";
+    const editBtn = document.createElement("button");
+    editBtn.className = "action-btn edit";
+    editBtn.dataset.site = rule.site;
+    editBtn.title = "Edit";
+    editBtn.textContent = "Edit";
+    const delBtn = document.createElement("button");
+    delBtn.className = "action-btn delete";
+    delBtn.dataset.site = rule.site;
+    delBtn.title = "Delete";
+    delBtn.textContent = "Del";
+    tdActions.appendChild(editBtn);
+    tdActions.appendChild(delBtn);
+
     tbody.appendChild(tr);
   });
 
@@ -331,7 +366,7 @@ async function handleEdit(site) {
     select.appendChild(opt);
   });
 
-  containerCell.innerHTML = "";
+  containerCell.textContent = "";
   containerCell.appendChild(select);
   select.focus();
 
@@ -356,7 +391,8 @@ async function handleEdit(site) {
   select.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
       saved = true;
-      containerCell.innerHTML = containerBadge(rule.userContextId);
+      containerCell.textContent = "";
+      containerCell.appendChild(containerBadge(rule.userContextId));
     }
   });
 }
