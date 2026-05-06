@@ -40,7 +40,9 @@ func TestParseProfilesINIFallback(t *testing.T) {
 
 func TestFindMACUUID(t *testing.T) {
 	dir := t.TempDir()
-	prefs := "user_pref(\"extensions.webextensions.uuids\", \"{\\\"@testpilot-containers\\\":\\\"7d2af900-bdc2-447e-b8fe-bea337a8dfd2\\\",\\\"other\\\":\\\"abc\\\"}\");"
+	// Simulates real prefs.js where testpilot-containers appears in UI prefs before the uuids pref
+	prefs := `user_pref("browser.uiCustomization.state", "{\"seen\":[\"_testpilot-containers-browser-action\",\"_d634138d-c276-4fc8-924b-40a0ea21d284_-browser-action\"]}");
+user_pref("extensions.webextensions.uuids", "{\"@testpilot-containers\":\"7d2af900-bdc2-447e-b8fe-bea337a8dfd2\",\"other\":\"abc\"}");`
 	os.WriteFile(filepath.Join(dir, "prefs.js"), []byte(prefs), 0644)
 
 	uuid, err := findMACUUID(dir)

@@ -98,12 +98,21 @@ func findMACUUID(profileDir string) (string, error) {
 	}
 
 	content := string(data)
-	idx := strings.Index(content, "testpilot-containers")
-	if idx == -1 {
+	// Find the extensions.webextensions.uuids pref specifically
+	uuidsIdx := strings.Index(content, "extensions.webextensions.uuids")
+	if uuidsIdx == -1 {
+		return "", fmt.Errorf("extensions.webextensions.uuids not found in prefs.js")
+	}
+
+	uuidsLine := content[uuidsIdx:]
+	// Find @testpilot-containers within the uuids pref value
+	macIdx := strings.Index(uuidsLine, "@testpilot-containers")
+	if macIdx == -1 {
 		return "", fmt.Errorf("multi-account containers extension not found in prefs.js")
 	}
 
-	rest := content[idx:]
+	// The UUID is the value after the key: "\"@testpilot-containers\":\"UUID\""
+	rest := uuidsLine[macIdx:]
 	match := uuidRegexp.FindString(rest)
 	if match == "" {
 		return "", fmt.Errorf("could not extract MAC UUID from prefs.js")
