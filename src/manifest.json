@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Container Rules Manager",
-  "description": "Manage Multi-Account Containers site rules with a table editor, import, and export.",
+  "description": "Manage Multi-Account Containers site-to-container assignments. Add, edit, and bulk-manage rules with import and export.",
   "version": "0.1.0",
   "icons": {
     "48": "icon.svg",
@@ -27,6 +27,7 @@
   },
   "permissions": [
     "nativeMessaging",
+    "management",
     "downloads",
     "storage"
   ]

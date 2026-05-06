@@ -19,6 +19,32 @@ async function sendCommand(cmd) {
   return browser.runtime.sendMessage(cmd);
 }
 
+function cleanHostname(input) {
+  let s = input.trim().toLowerCase();
+  try {
+    const url = new URL(s.includes("://") ? s : `https://${s}`);
+    const port = url.port;
+    s = url.hostname;
+    if (port && port !== "80" && port !== "443") {
+      s += port;
+    }
+  } catch {
+    s = s.replace(/[^a-z0-9.\-]/g, "");
+  }
+  s = s.replace(/^\.+|\.+$/g, "");
+  return s;
+}
+
+function isValidHostname(s) {
+  if (!s) return false;
+  // MAC stores non-standard ports appended directly: localhost5173
+  const match = s.match(/^([a-z0-9.-]+?)(\d+)$/);
+  const host = match ? match[1] : s;
+  if (host.length > 253) return false;
+  const labels = host.split(".");
+  return labels.every((l) => l.length > 0 && l.length <= 63 && /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(l));
+}
+
 function showBanner(message, type) {
   const banner = document.getElementById("banner");
   banner.textContent = message;
@@ -29,24 +55,55 @@ function showBanner(message, type) {
   }
 }
 
-function hideBanner() {
-  document.getElementById("banner").classList.add("hidden");
+function getActiveContainerId() {
+  return document.getElementById("active-container").value;
 }
 
 function populateContainerDropdowns() {
-  const selects = [
-    document.getElementById("select-container"),
-    document.getElementById("bulk-reassign-container"),
-  ];
-  selects.forEach((sel) => {
-    sel.innerHTML = "";
-    containers.forEach((c) => {
-      const opt = document.createElement("option");
-      opt.value = c.userContextId;
-      opt.textContent = c.name;
-      sel.appendChild(opt);
-    });
+  const activeSel = document.getElementById("active-container");
+  const prev = activeSel.value;
+  activeSel.innerHTML = '<option value="">All containers</option>';
+  containers.forEach((c) => {
+    const opt = document.createElement("option");
+    opt.value = c.userContextId;
+    opt.textContent = c.name;
+    activeSel.appendChild(opt);
   });
+  activeSel.value = prev;
+
+  const bulkSel = document.getElementById("bulk-reassign-container");
+  bulkSel.innerHTML = "";
+  containers.forEach((c) => {
+    const opt = document.createElement("option");
+    opt.value = c.userContextId;
+    opt.textContent = c.name;
+    bulkSel.appendChild(opt);
+  });
+}
+
+function updateContainerView() {
+  const ctxId = getActiveContainerId();
+  const input = document.getElementById("input-site");
+  const addControls = document.querySelectorAll(".add-controls");
+  const hint = document.getElementById("input-hint");
+
+  if (ctxId) {
+    addControls.forEach((el) => el.classList.remove("hidden"));
+    hint.classList.remove("hidden");
+    input.placeholder = "Search or add sites (comma-separated)...";
+  } else {
+    addControls.forEach((el) => el.classList.add("hidden"));
+    hint.classList.add("hidden");
+    input.placeholder = "Search sites (comma-separated)...";
+  }
+
+  const count = ctxId
+    ? allRules.filter((r) => r.userContextId === parseInt(ctxId)).length
+    : allRules.length;
+  document.getElementById("rule-count").textContent = `${count} rule${count !== 1 ? "s" : ""}`;
+
+  selectedSites.clear();
+  renderTable();
 }
 
 function containerBadge(ctxId) {
@@ -57,16 +114,22 @@ function containerBadge(ctxId) {
 }
 
 function renderTable() {
-  const filter = document.getElementById("input-filter").value.toLowerCase();
+  const raw = document.getElementById("input-site").value.toLowerCase();
+  const terms = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  const containerFilter = getActiveContainerId();
   const tbody = document.getElementById("rules-body");
   const emptyState = document.getElementById("empty-state");
+  const emptyMsg = document.getElementById("empty-message");
 
   let filtered = allRules;
-  if (filter) {
-    filtered = allRules.filter((r) => {
-      const cName = (containersByID[r.userContextId]?.name || "").toLowerCase();
-      return r.site.toLowerCase().includes(filter) || cName.includes(filter);
-    });
+  if (containerFilter) {
+    const ctxId = parseInt(containerFilter);
+    filtered = filtered.filter((r) => r.userContextId === ctxId);
+  }
+  if (terms.length > 0) {
+    filtered = filtered.filter((r) =>
+      terms.some((t) => r.site.toLowerCase().includes(t))
+    );
   }
 
   filtered.sort((a, b) => {
@@ -85,6 +148,13 @@ function renderTable() {
   tbody.innerHTML = "";
 
   if (filtered.length === 0) {
+    if (containerFilter && terms.length === 0) {
+      emptyMsg.textContent = "No rules in this container. Add sites above.";
+    } else if (terms.length > 0) {
+      emptyMsg.textContent = "No matching sites found.";
+    } else {
+      emptyMsg.textContent = "No site rules found. Select a container to add rules, or import from a JSON file.";
+    }
     emptyState.classList.remove("hidden");
     document.getElementById("rules-table").classList.add("hidden");
     return;
@@ -125,15 +195,50 @@ function updateBulkActions() {
   }
 }
 
+function showLockPanel() {
+  document.getElementById("mac-lock-panel").classList.remove("hidden");
+  document.getElementById("container-picker").classList.add("hidden");
+  document.getElementById("table-section").classList.add("hidden");
+}
+
+function hideLockPanel() {
+  document.getElementById("mac-lock-panel").classList.add("hidden");
+  document.getElementById("container-picker").classList.remove("hidden");
+  document.getElementById("table-section").classList.remove("hidden");
+}
+
+function showReminder() {
+  document.getElementById("mac-reminder").classList.remove("hidden");
+}
+
+function isLockedError(error) {
+  return error && error.includes("SQLITE_BUSY");
+}
+
 async function loadRules() {
   document.getElementById("loading").classList.remove("hidden");
+
+  const macStatus = await sendCommand({ cmd: "check-mac" });
+  if (macStatus.ok && macStatus.data.enabled) {
+    document.getElementById("loading").classList.add("hidden");
+    showLockPanel();
+    return;
+  }
+
   const resp = await sendCommand({ cmd: "list" });
   document.getElementById("loading").classList.add("hidden");
 
   if (!resp.ok) {
+    if (isLockedError(resp.error)) {
+      showLockPanel();
+      return;
+    }
     showBanner(resp.error, "error");
     return;
   }
+
+  hideLockPanel();
+  showReminder();
 
   allRules = resp.data.rules || [];
   containers = resp.data.containers || [];
@@ -141,27 +246,59 @@ async function loadRules() {
   containers.forEach((c) => { containersByID[c.userContextId] = c; });
 
   populateContainerDropdowns();
-  renderTable();
+  updateContainerView();
 }
 
 async function handleAdd() {
-  const site = document.getElementById("input-site").value.trim().toLowerCase();
-  const ctxId = parseInt(document.getElementById("select-container").value);
+  const raw = document.getElementById("input-site").value;
+  const cleaned = raw.split(",").map(cleanHostname).filter(Boolean);
+  const ctxId = parseInt(getActiveContainerId());
   const neverAsk = document.getElementById("check-neverask").checked;
 
-  if (!site) {
+  if (cleaned.length === 0) {
     showBanner("Please enter a hostname.", "error");
     return;
   }
 
-  const resp = await sendCommand({ cmd: "add", site, userContextId: ctxId, neverAsk });
-  if (!resp.ok) {
-    showBanner(resp.error, "error");
+  const invalid = cleaned.filter((s) => !isValidHostname(s));
+  if (invalid.length > 0) {
+    showBanner(`Invalid hostname${invalid.length > 1 ? "s" : ""}: ${invalid.join(", ")}`, "error");
     return;
   }
 
+  const sites = cleaned;
+
+  const conflicts = [];
+  for (const site of sites) {
+    const existing = allRules.find((r) => r.site === site && r.userContextId !== ctxId);
+    if (existing) {
+      const cName = containersByID[existing.userContextId]?.name || `Container ${existing.userContextId}`;
+      conflicts.push(`${site} (currently in ${cName})`);
+    }
+  }
+
+  if (conflicts.length > 0) {
+    const targetName = containersByID[ctxId]?.name || `Container ${ctxId}`;
+    if (!confirm(`These sites already exist in other containers and will be reassigned to ${targetName}:\n\n${conflicts.join("\n")}\n\nContinue?`)) {
+      return;
+    }
+  }
+
+  const errors = [];
+  for (const site of sites) {
+    const resp = await sendCommand({ cmd: "add", site, userContextId: ctxId, neverAsk });
+    if (!resp.ok) {
+      errors.push(`${site}: ${resp.error}`);
+    }
+  }
+
   document.getElementById("input-site").value = "";
-  showMACReloadStatus(resp.data?._macReload);
+
+  if (errors.length > 0) {
+    showBanner(`Failed: ${errors.join("; ")}`, "error");
+  } else {
+    showBanner(sites.length === 1 ? "Saved." : `Added ${sites.length} rules.`, "success");
+  }
   await loadRules();
 }
 
@@ -172,7 +309,7 @@ async function handleDelete(site) {
     showBanner(resp.error, "error");
     return;
   }
-  showMACReloadStatus(resp.data?._macReload);
+  showBanner("Deleted.", "success");
   await loadRules();
 }
 
@@ -207,7 +344,7 @@ async function handleEdit(site) {
       if (!resp.ok) {
         showBanner(resp.error, "error");
       } else {
-        showMACReloadStatus(resp.data?._macReload);
+        showBanner("Saved.", "success");
       }
     }
     await loadRules();
@@ -223,17 +360,6 @@ async function handleEdit(site) {
   });
 }
 
-function showMACReloadStatus(reload) {
-  if (!reload) {
-    showBanner("Saved.", "success");
-    return;
-  }
-  if (reload.reloaded) {
-    showBanner("Saved. MAC reloaded.", "success");
-  } else {
-    showBanner(reload.warning, "warning");
-  }
-}
 
 async function handleExport() {
   const resp = await sendCommand({ cmd: "export" });
@@ -264,7 +390,7 @@ async function handleImport(file) {
     return;
   }
 
-  const rules = data.rules || data.siteMappings || [];
+  const rules = data.rules || [];
   if (rules.length === 0) {
     showBanner("No rules found in file.", "error");
     return;
@@ -276,14 +402,18 @@ async function handleImport(file) {
     neverAsk: r.neverAsk !== undefined ? r.neverAsk : true,
   }));
 
-  const resp = await sendCommand({ cmd: "import", rules: importRules });
+  const mode = confirm(
+    `Import ${importRules.length} rules.\n\nOK = Replace all existing rules with this file\nCancel = Merge (add new, update existing)`
+  ) ? "replace" : "merge";
+
+  const resp = await sendCommand({ cmd: "import", rules: importRules, mode });
   if (!resp.ok) {
     showBanner(resp.error, "error");
     return;
   }
 
-  showBanner(`Imported: ${resp.data.added} added, ${resp.data.updated} updated, ${resp.data.skipped} skipped.`, "success");
-  showMACReloadStatus(resp.data?._macReload);
+  const action = mode === "replace" ? "Replaced" : "Merged";
+  showBanner(`${action}: ${resp.data.added} added, ${resp.data.updated} updated, ${resp.data.skipped} skipped.`, "success");
   await loadRules();
 }
 
@@ -317,9 +447,21 @@ function init() {
     if (e.target.files[0]) handleImport(e.target.files[0]);
     e.target.value = "";
   });
-  document.getElementById("input-filter").addEventListener("input", renderTable);
+  document.getElementById("input-site").addEventListener("input", renderTable);
+  document.getElementById("active-container").addEventListener("change", updateContainerView);
   document.getElementById("btn-bulk-delete").addEventListener("click", handleBulkDelete);
   document.getElementById("btn-bulk-reassign").addEventListener("click", handleBulkReassign);
+
+  document.getElementById("btn-retry").addEventListener("click", loadRules);
+
+  function copyAddonsURL(btn) {
+    navigator.clipboard.writeText("about:addons").then(() => {
+      const orig = btn.textContent;
+      btn.textContent = "Copied!";
+      setTimeout(() => { btn.textContent = orig; }, 1500);
+    });
+  }
+  document.getElementById("btn-copy-addons").addEventListener("click", (e) => copyAddonsURL(e.target));
 
   document.getElementById("check-all").addEventListener("change", (e) => {
     if (e.target.checked) {

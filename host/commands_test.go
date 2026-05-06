@@ -11,12 +11,6 @@ func TestExportCommand(t *testing.T) {
 	dbPath := createTestDB(t)
 	profileDir := t.TempDir()
 
-	containersJSON := `{"identities": [
-		{"userContextId": 2, "public": true, "icon": "briefcase", "color": "red", "name": "Work"},
-		{"userContextId": 6, "public": true, "icon": "tree", "color": "green", "name": "Google"}
-	]}`
-	writeTestFile(t, profileDir, "containers.json", containersJSON)
-
 	ctx := &cmdContext{dbPath: dbPath, profileDir: profileDir}
 	resp := handleExport(ctx)
 
@@ -28,14 +22,8 @@ func TestExportCommand(t *testing.T) {
 	var export ExportData
 	json.Unmarshal(data, &export)
 
-	if export.Version != 1 {
-		t.Errorf("expected version 1, got %d", export.Version)
-	}
 	if len(export.Rules) != 2 {
 		t.Errorf("expected 2 rules, got %d", len(export.Rules))
-	}
-	if len(export.Containers) != 2 {
-		t.Errorf("expected 2 containers, got %d", len(export.Containers))
 	}
 }
 
@@ -50,7 +38,7 @@ func TestImportCommand(t *testing.T) {
 		{Site: "github.com", UserContextID: 3, NeverAsk: true},
 	}
 
-	resp := handleImport(ctx, importRules)
+	resp := handleImport(ctx, importRules, "merge")
 	if !resp.OK {
 		t.Fatalf("import failed: %s", resp.Error)
 	}

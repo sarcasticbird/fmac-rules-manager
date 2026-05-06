@@ -1,4 +1,3 @@
-// host/containers.go
 package main
 
 import (
@@ -51,10 +50,3 @@ func readContainers(profileDir string) ([]Container, error) {
 	return containers, nil
 }
 
-func containerMap(containers []Container) map[int]Container {
-	m := make(map[int]Container, len(containers))
-	for _, c := range containers {
-		m[c.UserContextID] = c
-	}
-	return m
-}

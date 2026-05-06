@@ -1,6 +1,5 @@
 const HOST_NAME = "fmac_rules_manager";
 const MAC_ID = "@testpilot-containers";
-
 let port = null;
 let pendingCallbacks = [];
 
@@ -40,24 +39,27 @@ function sendToHost(message) {
   });
 }
 
-function reloadMAC() {
-  return { reloaded: false, warning: "Restart browser for MAC to pick up changes." };
-}
-
-const WRITE_COMMANDS = new Set(["add", "update", "delete", "import"]);
-
 browser.browserAction.onClicked.addListener(() => {
   browser.runtime.openOptionsPage();
 });
 
+async function checkMACStatus() {
+  try {
+    const info = await browser.management.get(MAC_ID);
+    return { ok: true, data: { enabled: info.enabled, name: info.name } };
+  } catch (err) {
+    return { ok: false, error: `Cannot check MAC status: ${err.message}` };
+  }
+}
+
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
-    const response = await sendToHost(message);
-
-    if (response.ok && WRITE_COMMANDS.has(message.cmd)) {
-      response.data._macReload = await reloadMAC();
+    if (message.cmd === "check-mac") {
+      sendResponse(await checkMACStatus());
+      return;
     }
 
+    const response = await sendToHost(message);
     sendResponse(response);
   })();
 

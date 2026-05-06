@@ -1,4 +1,3 @@
-// host/containers_test.go
 package main
 
 import (
@@ -43,17 +42,3 @@ func TestReadContainersMissing(t *testing.T) {
 	}
 }
 
-func TestContainerMap(t *testing.T) {
-	containers := []Container{
-		{UserContextID: 1, Name: "Personal", Icon: "fingerprint", Color: "blue"},
-		{UserContextID: 2, Name: "Work", Icon: "briefcase", Color: "red"},
-	}
-	m := containerMap(containers)
-	c, ok := m[2]
-	if !ok {
-		t.Fatal("expected container 2 in map")
-	}
-	if c.Name != "Work" {
-		t.Errorf("expected Work, got %s", c.Name)
-	}
-}

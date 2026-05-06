@@ -1,3 +1,4 @@
 node_modules/
 dist/
 *.xpi
+host/fmac_rules_manager

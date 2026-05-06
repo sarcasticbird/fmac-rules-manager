@@ -15,6 +15,7 @@ type Request struct {
 	UserContextID int        `json:"userContextId,omitempty"`
 	NeverAsk      *bool      `json:"neverAsk,omitempty"`
 	Rules         []RuleSpec `json:"rules,omitempty"`
+	Mode          string     `json:"mode,omitempty"`
 }
 
 type RuleSpec struct {

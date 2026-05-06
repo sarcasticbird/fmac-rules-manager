@@ -3,9 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"path/filepath"
-	"strings"
-	"time"
 )
 
 type cmdContext struct {
@@ -14,19 +11,7 @@ type cmdContext struct {
 }
 
 type ExportData struct {
-	Version    int          `json:"version"`
-	ExportedAt string       `json:"exportedAt"`
-	Browser    string       `json:"browser"`
-	Containers []Container  `json:"containers"`
-	Rules      []ExportRule `json:"rules"`
-	TotalRules int          `json:"totalRules"`
-}
-
-type ExportRule struct {
-	Site          string `json:"site"`
-	UserContextID int    `json:"userContextId"`
-	Container     string `json:"container"`
-	NeverAsk      bool   `json:"neverAsk"`
+	Rules []SiteRule `json:"rules"`
 }
 
 type ImportResult struct {
@@ -53,14 +38,6 @@ func discoverContext() (*cmdContext, error) {
 	}
 
 	return &cmdContext{dbPath: dbPath, profileDir: profileDir}, nil
-}
-
-func detectBrowser(profileDir string) string {
-	lower := filepath.ToSlash(profileDir)
-	if strings.Contains(lower, "zen") {
-		return "zen"
-	}
-	return "firefox"
 }
 
 func handleList(ctx *cmdContext) Response {
@@ -132,47 +109,28 @@ func handleExport(ctx *cmdContext) Response {
 		return Response{OK: false, Error: fmt.Sprintf("reading rules: %v", err)}
 	}
 
-	containers, err := readContainers(ctx.profileDir)
-	if err != nil {
-		return Response{OK: false, Error: fmt.Sprintf("reading containers: %v", err)}
-	}
-
-	cMap := containerMap(containers)
-	exportRules := make([]ExportRule, len(rules))
-	for i, r := range rules {
-		containerName := fmt.Sprintf("Unknown (%d)", r.UserContextID)
-		if c, ok := cMap[r.UserContextID]; ok {
-			containerName = c.Name
-		}
-		exportRules[i] = ExportRule{
-			Site:          r.Site,
-			UserContextID: r.UserContextID,
-			Container:     containerName,
-			NeverAsk:      r.NeverAsk,
-		}
-	}
-
-	export := ExportData{
-		Version:    1,
-		ExportedAt: time.Now().UTC().Format(time.RFC3339),
-		Browser:    detectBrowser(ctx.profileDir),
-		Containers: containers,
-		Rules:      exportRules,
-		TotalRules: len(exportRules),
-	}
-
-	return Response{OK: true, Data: export}
+	return Response{OK: true, Data: ExportData{Rules: rules}}
 }
 
-func handleImport(ctx *cmdContext, importRules []RuleSpec) Response {
+func handleImport(ctx *cmdContext, importRules []RuleSpec, mode string) Response {
 	existing, blobs, err := readRules(ctx.dbPath)
 	if err != nil {
 		return Response{OK: false, Error: fmt.Sprintf("reading rules: %v", err)}
 	}
 
+	if mode == "replace" {
+		for _, r := range existing {
+			if err := deleteRule(ctx.dbPath, r.Site); err != nil {
+				log.Printf("import replace: failed to delete %s: %v", r.Site, err)
+			}
+		}
+	}
+
 	existingMap := make(map[string]bool)
-	for _, r := range existing {
-		existingMap[r.Site] = true
+	if mode != "replace" {
+		for _, r := range existing {
+			existingMap[r.Site] = true
+		}
 	}
 
 	var added, updated, skipped int
@@ -222,7 +180,7 @@ func dispatch(req Request) Response {
 	case "export":
 		return handleExport(ctx)
 	case "import":
-		return handleImport(ctx, req.Rules)
+		return handleImport(ctx, req.Rules, req.Mode)
 	default:
 		return Response{OK: false, Error: fmt.Sprintf("unknown command: %s", req.Cmd)}
 	}

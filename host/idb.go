@@ -2,12 +2,23 @@ package main
 
 import (
 	"database/sql"
+	"database/sql/driver"
 	"fmt"
 	"os"
 	"path/filepath"
 
-	_ "modernc.org/sqlite"
+	"modernc.org/sqlite"
 )
+
+func init() {
+	// Firefox's IDB schema has triggers that call update_refcount, a C function
+	// Firefox registers at runtime. We register a no-op so writes don't fail.
+	sqlite.MustRegisterScalarFunction("update_refcount", 2,
+		func(ctx *sqlite.FunctionContext, args []driver.Value) (driver.Value, error) {
+			return nil, nil
+		},
+	)
+}
 
 type SiteRule struct {
 	Site          string `json:"site"`
@@ -29,7 +40,7 @@ func findSQLiteFile(idbDir string) (string, error) {
 }
 
 func openIDB(path string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite", path+"?_busy_timeout=5000&_journal_mode=wal")
+	db, err := sql.Open("sqlite", path+"?_busy_timeout=5000&_pragma=journal_mode(wal)")
 	if err != nil {
 		return nil, fmt.Errorf("opening SQLite: %w", err)
 	}
