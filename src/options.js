@@ -161,6 +161,7 @@ async function handleAdd() {
 }
 
 async function handleDelete(site) {
+  if (!confirm(`Delete rule for "${site}"?`)) return;
   const resp = await sendCommand({ cmd: "delete", site });
   if (!resp.ok) {
     showBanner(resp.error, "error");
@@ -191,7 +192,10 @@ async function handleEdit(site) {
   containerCell.appendChild(select);
   select.focus();
 
+  let saved = false;
   const save = async () => {
+    if (saved) return;
+    saved = true;
     const newCtxId = parseInt(select.value);
     if (newCtxId !== rule.userContextId) {
       const resp = await sendCommand({ cmd: "update", site, userContextId: newCtxId, neverAsk: rule.neverAsk });
@@ -206,6 +210,12 @@ async function handleEdit(site) {
 
   select.addEventListener("change", save);
   select.addEventListener("blur", save);
+  select.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      saved = true;
+      containerCell.innerHTML = containerBadge(rule.userContextId);
+    }
+  });
 }
 
 function showMACReloadStatus(reload) {
@@ -289,61 +299,64 @@ async function handleBulkReassign() {
   await loadRules();
 }
 
-// Event listeners
-document.getElementById("btn-add").addEventListener("click", handleAdd);
-document.getElementById("input-site").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") handleAdd();
-});
-document.getElementById("btn-export").addEventListener("click", handleExport);
-document.getElementById("btn-import").addEventListener("change", (e) => {
-  if (e.target.files[0]) handleImport(e.target.files[0]);
-  e.target.value = "";
-});
-document.getElementById("input-filter").addEventListener("input", renderTable);
-document.getElementById("btn-bulk-delete").addEventListener("click", handleBulkDelete);
-document.getElementById("btn-bulk-reassign").addEventListener("click", handleBulkReassign);
+function init() {
+  document.getElementById("btn-add").addEventListener("click", handleAdd);
+  document.getElementById("input-site").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") handleAdd();
+  });
+  document.getElementById("btn-export").addEventListener("click", handleExport);
+  document.getElementById("btn-import").addEventListener("change", (e) => {
+    if (e.target.files[0]) handleImport(e.target.files[0]);
+    e.target.value = "";
+  });
+  document.getElementById("input-filter").addEventListener("input", renderTable);
+  document.getElementById("btn-bulk-delete").addEventListener("click", handleBulkDelete);
+  document.getElementById("btn-bulk-reassign").addEventListener("click", handleBulkReassign);
 
-document.getElementById("check-all").addEventListener("change", (e) => {
-  if (e.target.checked) {
-    allRules.forEach((r) => selectedSites.add(r.site));
-  } else {
-    selectedSites.clear();
-  }
-  renderTable();
-});
-
-document.getElementById("rules-body").addEventListener("click", (e) => {
-  const btn = e.target.closest("button");
-  if (btn?.classList.contains("edit")) {
-    handleEdit(btn.dataset.site);
-  } else if (btn?.classList.contains("delete")) {
-    handleDelete(btn.dataset.site);
-  }
-});
-
-document.getElementById("rules-body").addEventListener("change", (e) => {
-  if (e.target.type === "checkbox") {
-    const site = e.target.dataset.site;
+  document.getElementById("check-all").addEventListener("change", (e) => {
     if (e.target.checked) {
-      selectedSites.add(site);
+      allRules.forEach((r) => selectedSites.add(r.site));
     } else {
-      selectedSites.delete(site);
-    }
-    renderTable();
-  }
-});
-
-document.querySelectorAll("th.sortable").forEach((th) => {
-  th.addEventListener("click", () => {
-    const field = th.dataset.sort;
-    if (sortField === field) {
-      sortAsc = !sortAsc;
-    } else {
-      sortField = field;
-      sortAsc = true;
+      selectedSites.clear();
     }
     renderTable();
   });
-});
 
-loadRules();
+  document.getElementById("rules-body").addEventListener("click", (e) => {
+    const btn = e.target.closest("button");
+    if (btn?.classList.contains("edit")) {
+      handleEdit(btn.dataset.site);
+    } else if (btn?.classList.contains("delete")) {
+      handleDelete(btn.dataset.site);
+    }
+  });
+
+  document.getElementById("rules-body").addEventListener("change", (e) => {
+    if (e.target.type === "checkbox") {
+      const site = e.target.dataset.site;
+      if (e.target.checked) {
+        selectedSites.add(site);
+      } else {
+        selectedSites.delete(site);
+      }
+      renderTable();
+    }
+  });
+
+  document.querySelectorAll("th.sortable").forEach((th) => {
+    th.addEventListener("click", () => {
+      const field = th.dataset.sort;
+      if (sortField === field) {
+        sortAsc = !sortAsc;
+      } else {
+        sortField = field;
+        sortAsc = true;
+      }
+      renderTable();
+    });
+  });
+
+  loadRules();
+}
+
+document.addEventListener("DOMContentLoaded", init);
