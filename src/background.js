@@ -29,8 +29,8 @@ function sendToHost(message) {
   return new Promise((resolve) => {
     try {
       const p = connectHost();
-      pendingCallbacks.push(resolve);
       p.postMessage(message);
+      pendingCallbacks.push(resolve);
     } catch (err) {
       resolve({
         ok: false,
