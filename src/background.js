@@ -53,6 +53,10 @@ async function reloadMAC() {
 
 const WRITE_COMMANDS = new Set(["add", "update", "delete", "import"]);
 
+browser.browserAction.onClicked.addListener(() => {
+  browser.runtime.openOptionsPage();
+});
+
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
     const response = await sendToHost(message);
