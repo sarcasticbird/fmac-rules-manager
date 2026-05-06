@@ -125,6 +125,15 @@ function updateBulkActions() {
   }
 }
 
+async function startSession() {
+  const resp = await sendCommand({ cmd: "begin-session" });
+  if (!resp.ok) {
+    showBanner(resp.error, "error");
+    return false;
+  }
+  return true;
+}
+
 async function loadRules() {
   document.getElementById("loading").classList.remove("hidden");
   const resp = await sendCommand({ cmd: "list" });
@@ -161,7 +170,7 @@ async function handleAdd() {
   }
 
   document.getElementById("input-site").value = "";
-  showMACReloadStatus(resp.data._macReload);
+  showSuccess();
   await loadRules();
 }
 
@@ -172,7 +181,7 @@ async function handleDelete(site) {
     showBanner(resp.error, "error");
     return;
   }
-  showMACReloadStatus(resp.data._macReload);
+  showSuccess();
   await loadRules();
 }
 
@@ -207,7 +216,7 @@ async function handleEdit(site) {
       if (!resp.ok) {
         showBanner(resp.error, "error");
       } else {
-        showMACReloadStatus(resp.data._macReload);
+        showSuccess();
       }
     }
     await loadRules();
@@ -223,13 +232,8 @@ async function handleEdit(site) {
   });
 }
 
-function showMACReloadStatus(reload) {
-  if (!reload) return;
-  if (reload.reloaded) {
-    showBanner("Rule saved. MAC reloaded.", "success");
-  } else {
-    showBanner(reload.warning, "warning");
-  }
+function showSuccess(message) {
+  showBanner(message || "Saved.", "success");
 }
 
 async function handleExport() {
@@ -280,7 +284,7 @@ async function handleImport(file) {
   }
 
   showBanner(`Imported: ${resp.data.added} added, ${resp.data.updated} updated, ${resp.data.skipped} skipped.`, "success");
-  showMACReloadStatus(resp.data._macReload);
+  showSuccess();
   await loadRules();
 }
 
@@ -361,7 +365,13 @@ function init() {
     });
   });
 
-  loadRules();
+  startSession().then((ok) => {
+    if (ok) loadRules();
+  });
+
+  window.addEventListener("beforeunload", () => {
+    sendCommand({ cmd: "end-session" });
+  });
 }
 
 document.addEventListener("DOMContentLoaded", init);

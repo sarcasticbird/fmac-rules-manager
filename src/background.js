@@ -3,6 +3,7 @@ const MAC_ID = "@testpilot-containers";
 
 let port = null;
 let pendingCallbacks = [];
+let sessionActive = false;
 
 function connectHost() {
   if (port) return port;
@@ -40,18 +41,27 @@ function sendToHost(message) {
   });
 }
 
-async function reloadMAC() {
+async function beginSession() {
+  if (sessionActive) return { ok: true };
   try {
     await browser.management.setEnabled(MAC_ID, false);
-    await new Promise((r) => setTimeout(r, 500));
-    await browser.management.setEnabled(MAC_ID, true);
-    return { reloaded: true };
+    await new Promise((r) => setTimeout(r, 300));
+    sessionActive = true;
+    return { ok: true };
   } catch (err) {
-    return { reloaded: false, warning: `Could not reload MAC: ${err.message}. Restart browser to apply changes.` };
+    return { ok: false, error: `Could not disable MAC to release DB lock: ${err.message}` };
   }
 }
 
-const WRITE_COMMANDS = new Set(["add", "update", "delete", "import"]);
+async function endSession() {
+  if (!sessionActive) return;
+  sessionActive = false;
+  try {
+    await browser.management.setEnabled(MAC_ID, true);
+  } catch (err) {
+    // Best effort — MAC will reload on browser restart
+  }
+}
 
 browser.browserAction.onClicked.addListener(() => {
   browser.runtime.openOptionsPage();
@@ -59,17 +69,25 @@ browser.browserAction.onClicked.addListener(() => {
 
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
-    const response = await sendToHost(message);
-
-    if (response.ok && WRITE_COMMANDS.has(message.cmd)) {
-      const reload = await reloadMAC();
-      if (response.data && typeof response.data === "object") {
-        response.data._macReload = reload;
-      }
+    if (message.cmd === "begin-session") {
+      sendResponse(await beginSession());
+      return;
     }
 
+    if (message.cmd === "end-session") {
+      await endSession();
+      sendResponse({ ok: true });
+      return;
+    }
+
+    const response = await sendToHost(message);
     sendResponse(response);
   })();
 
   return true;
+});
+
+// Re-enable MAC if the extension is unloaded or browser shuts down
+browser.runtime.onSuspend?.addListener(() => {
+  endSession();
 });
