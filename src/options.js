@@ -125,15 +125,6 @@ function updateBulkActions() {
   }
 }
 
-async function startSession() {
-  const resp = await sendCommand({ cmd: "begin-session" });
-  if (!resp.ok) {
-    showBanner(resp.error, "error");
-    return false;
-  }
-  return true;
-}
-
 async function loadRules() {
   document.getElementById("loading").classList.remove("hidden");
   const resp = await sendCommand({ cmd: "list" });
@@ -170,7 +161,7 @@ async function handleAdd() {
   }
 
   document.getElementById("input-site").value = "";
-  showSuccess();
+  showMACReloadStatus(resp.data?._macReload);
   await loadRules();
 }
 
@@ -181,7 +172,7 @@ async function handleDelete(site) {
     showBanner(resp.error, "error");
     return;
   }
-  showSuccess();
+  showMACReloadStatus(resp.data?._macReload);
   await loadRules();
 }
 
@@ -216,7 +207,7 @@ async function handleEdit(site) {
       if (!resp.ok) {
         showBanner(resp.error, "error");
       } else {
-        showSuccess();
+        showMACReloadStatus(resp.data?._macReload);
       }
     }
     await loadRules();
@@ -232,8 +223,16 @@ async function handleEdit(site) {
   });
 }
 
-function showSuccess(message) {
-  showBanner(message || "Saved.", "success");
+function showMACReloadStatus(reload) {
+  if (!reload) {
+    showBanner("Saved.", "success");
+    return;
+  }
+  if (reload.reloaded) {
+    showBanner("Saved. MAC reloaded.", "success");
+  } else {
+    showBanner(reload.warning, "warning");
+  }
 }
 
 async function handleExport() {
@@ -284,7 +283,7 @@ async function handleImport(file) {
   }
 
   showBanner(`Imported: ${resp.data.added} added, ${resp.data.updated} updated, ${resp.data.skipped} skipped.`, "success");
-  showSuccess();
+  showMACReloadStatus(resp.data?._macReload);
   await loadRules();
 }
 
@@ -365,13 +364,7 @@ function init() {
     });
   });
 
-  startSession().then((ok) => {
-    if (ok) loadRules();
-  });
-
-  window.addEventListener("beforeunload", () => {
-    sendCommand({ cmd: "end-session" });
-  });
+  loadRules();
 }
 
 document.addEventListener("DOMContentLoaded", init);

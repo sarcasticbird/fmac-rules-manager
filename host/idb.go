@@ -29,7 +29,7 @@ func findSQLiteFile(idbDir string) (string, error) {
 }
 
 func openIDB(path string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite", path+"?_busy_timeout=5000")
+	db, err := sql.Open("sqlite", path+"?_busy_timeout=5000&_journal_mode=wal")
 	if err != nil {
 		return nil, fmt.Errorf("opening SQLite: %w", err)
 	}
@@ -37,49 +37,7 @@ func openIDB(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-// backupForRead copies the live database to a temp file using VACUUM INTO,
-// which works even when the browser holds an exclusive WAL lock.
-func backupForRead(dbPath string) (string, error) {
-	tmpFile, err := os.CreateTemp("", "fmac-idb-*.sqlite")
-	if err != nil {
-		return "", fmt.Errorf("creating temp file: %w", err)
-	}
-	tmpPath := tmpFile.Name()
-	tmpFile.Close()
-	os.Remove(tmpPath)
-
-	db, err := openIDB(dbPath)
-	if err != nil {
-		return "", err
-	}
-	defer db.Close()
-
-	_, err = db.Exec("VACUUM INTO ?", tmpPath)
-	if err != nil {
-		os.Remove(tmpPath)
-		return "", fmt.Errorf("backup via VACUUM INTO: %w", err)
-	}
-
-	return tmpPath, nil
-}
-
 func readRules(dbPath string) ([]SiteRule, [][]byte, error) {
-	// Try direct read first; fall back to backup copy if locked
-	rules, blobs, err := readRulesDirect(dbPath)
-	if err == nil {
-		return rules, blobs, nil
-	}
-
-	tmpPath, backupErr := backupForRead(dbPath)
-	if backupErr != nil {
-		return nil, nil, fmt.Errorf("database locked and backup failed: %w", backupErr)
-	}
-	defer os.Remove(tmpPath)
-
-	return readRulesDirect(tmpPath)
-}
-
-func readRulesDirect(dbPath string) ([]SiteRule, [][]byte, error) {
 	db, err := openIDB(dbPath)
 	if err != nil {
 		return nil, nil, err

@@ -3,7 +3,6 @@ const MAC_ID = "@testpilot-containers";
 
 let port = null;
 let pendingCallbacks = [];
-let sessionActive = false;
 
 function connectHost() {
   if (port) return port;
@@ -41,27 +40,11 @@ function sendToHost(message) {
   });
 }
 
-async function beginSession() {
-  if (sessionActive) return { ok: true };
-  try {
-    await browser.management.setEnabled(MAC_ID, false);
-    await new Promise((r) => setTimeout(r, 300));
-    sessionActive = true;
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: `Could not disable MAC to release DB lock: ${err.message}` };
-  }
+function reloadMAC() {
+  return { reloaded: false, warning: "Restart browser for MAC to pick up changes." };
 }
 
-async function endSession() {
-  if (!sessionActive) return;
-  sessionActive = false;
-  try {
-    await browser.management.setEnabled(MAC_ID, true);
-  } catch (err) {
-    // Best effort — MAC will reload on browser restart
-  }
-}
+const WRITE_COMMANDS = new Set(["add", "update", "delete", "import"]);
 
 browser.browserAction.onClicked.addListener(() => {
   browser.runtime.openOptionsPage();
@@ -69,25 +52,14 @@ browser.browserAction.onClicked.addListener(() => {
 
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
-    if (message.cmd === "begin-session") {
-      sendResponse(await beginSession());
-      return;
-    }
-
-    if (message.cmd === "end-session") {
-      await endSession();
-      sendResponse({ ok: true });
-      return;
-    }
-
     const response = await sendToHost(message);
+
+    if (response.ok && WRITE_COMMANDS.has(message.cmd)) {
+      response.data._macReload = await reloadMAC();
+    }
+
     sendResponse(response);
   })();
 
   return true;
-});
-
-// Re-enable MAC if the extension is unloaded or browser shuts down
-browser.runtime.onSuspend?.addListener(() => {
-  endSession();
 });
