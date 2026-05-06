@@ -69,3 +69,80 @@ func TestExtractUUID(t *testing.T) {
 		t.Errorf("expected b022020c-..., got %s", uuid)
 	}
 }
+
+func TestBuildBlob(t *testing.T) {
+	newBlob, err := buildBlob(blobTrueCtx6, 3, true)
+	if err != nil {
+		t.Fatalf("buildBlob: %v", err)
+	}
+
+	ctx, err := extractUserContextID(newBlob)
+	if err != nil {
+		t.Fatalf("extractUserContextID from new blob: %v", err)
+	}
+	if ctx != 3 {
+		t.Errorf("expected ctx=3, got %d", ctx)
+	}
+
+	na, err := extractNeverAsk(newBlob)
+	if err != nil {
+		t.Fatalf("extractNeverAsk from new blob: %v", err)
+	}
+	if !na {
+		t.Error("expected neverAsk=true")
+	}
+
+	uuid, err := extractUUID(newBlob)
+	if err != nil {
+		t.Fatalf("extractUUID from new blob: %v", err)
+	}
+	if uuid == "b022020c-1449-4a95-99a4-d8b89264d582" {
+		t.Error("UUID should be different from template")
+	}
+	if !isUUIDFormat(uuid) {
+		t.Errorf("generated UUID is not valid format: %s", uuid)
+	}
+}
+
+func TestBuildBlobNeverAskFalse(t *testing.T) {
+	newBlob, err := buildBlob(blobFalseCtx2, 5, false)
+	if err != nil {
+		t.Fatalf("buildBlob: %v", err)
+	}
+
+	ctx, _ := extractUserContextID(newBlob)
+	if ctx != 5 {
+		t.Errorf("expected ctx=5, got %d", ctx)
+	}
+
+	na, _ := extractNeverAsk(newBlob)
+	if na {
+		t.Error("expected neverAsk=false")
+	}
+}
+
+func TestBuildBlobSameDigitCount(t *testing.T) {
+	newBlob, err := buildBlob(blobTrueCtx6, 3, true)
+	if err != nil {
+		t.Fatalf("buildBlob: %v", err)
+	}
+	if len(newBlob) != len(blobTrueCtx6) {
+		t.Errorf("expected length %d, got %d", len(blobTrueCtx6), len(newBlob))
+	}
+}
+
+func TestPickTemplate(t *testing.T) {
+	templates := [][]byte{blobTrueCtx6, blobFalseCtx2}
+
+	tmpl := pickTemplate(templates, true)
+	na, _ := extractNeverAsk(tmpl)
+	if !na {
+		t.Error("expected neverAsk=true template")
+	}
+
+	tmpl = pickTemplate(templates, false)
+	na, _ = extractNeverAsk(tmpl)
+	if na {
+		t.Error("expected neverAsk=false template")
+	}
+}
