@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Container Rules Manager</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <header>
+    <h1>Container Rules Manager</h1>
+    <div class="header-actions">
+      <button id="btn-export" title="Export rules as JSON">Export</button>
+      <label class="btn" id="btn-import-label" title="Import rules from JSON">
+        Import
+        <input type="file" id="btn-import" accept=".json" hidden>
+      </label>
+    </div>
+  </header>
+
+  <div id="banner" class="banner hidden"></div>
+
+  <section id="add-rule-section">
+    <input type="text" id="input-site" placeholder="hostname (e.g. github.com)">
+    <select id="select-container"></select>
+    <label class="checkbox-label">
+      <input type="checkbox" id="check-neverask" checked>
+      Always open
+    </label>
+    <button id="btn-add">Add Rule</button>
+  </section>
+
+  <section id="table-section">
+    <div class="table-controls">
+      <input type="text" id="input-filter" placeholder="Filter by site or container...">
+      <div class="bulk-actions hidden" id="bulk-actions">
+        <span id="selected-count">0 selected</span>
+        <select id="bulk-reassign-container"></select>
+        <button id="btn-bulk-reassign">Reassign</button>
+        <button id="btn-bulk-delete" class="danger">Delete</button>
+      </div>
+    </div>
+
+    <table id="rules-table">
+      <thead>
+        <tr>
+          <th class="col-check"><input type="checkbox" id="check-all"></th>
+          <th class="col-site sortable" data-sort="site">Site</th>
+          <th class="col-container sortable" data-sort="container">Container</th>
+          <th class="col-neverask">Always</th>
+          <th class="col-actions">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="rules-body"></tbody>
+    </table>
+
+    <div id="empty-state" class="hidden">
+      <p>No site rules found. Add a rule above or import from a JSON file.</p>
+    </div>
+  </section>
+
+  <div id="loading" class="loading">Loading rules...</div>
+
+  <script src="options.js"></script>
+</body>
+</html>
