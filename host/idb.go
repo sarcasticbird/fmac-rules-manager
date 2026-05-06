@@ -148,3 +148,83 @@ func deleteRule(dbPath string, site string) error {
 	}
 	return nil
 }
+
+type importResult struct {
+	added   int
+	updated int
+	skipped int
+}
+
+func importRules(dbPath string, rules []RuleSpec, existing []SiteRule, blobs [][]byte, replace bool) (*importResult, error) {
+	db, err := openIDB(dbPath)
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	tx, err := db.Begin()
+	if err != nil {
+		return nil, fmt.Errorf("beginning transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	if replace {
+		for _, r := range existing {
+			key := siteContainerMapKey(r.Site)
+			if _, err := tx.Exec("DELETE FROM object_data WHERE object_store_id = 1 AND key = ?", key); err != nil {
+				return nil, fmt.Errorf("deleting %s during replace: %w", r.Site, err)
+			}
+		}
+	}
+
+	existingMap := make(map[string]bool)
+	if !replace {
+		for _, r := range existing {
+			existingMap[r.Site] = true
+		}
+	}
+
+	if replace && len(blobs) == 0 {
+		return nil, fmt.Errorf("cannot replace: no existing rules to use as blob templates")
+	}
+
+	res := &importResult{}
+	for _, r := range rules {
+		if r.Site == "" || r.UserContextID <= 0 {
+			res.skipped++
+			continue
+		}
+
+		tmpl := pickTemplate(blobs, r.NeverAsk)
+		if tmpl == nil {
+			res.skipped++
+			continue
+		}
+
+		blob, err := buildBlob(tmpl, r.UserContextID, r.NeverAsk)
+		if err != nil {
+			res.skipped++
+			continue
+		}
+
+		key := siteContainerMapKey(r.Site)
+		if _, err := tx.Exec("INSERT OR REPLACE INTO object_data (object_store_id, key, data) VALUES (1, ?, ?)", key, blob); err != nil {
+			return nil, fmt.Errorf("inserting %s: %w", r.Site, err)
+		}
+
+		if existingMap[r.Site] {
+			res.updated++
+		} else {
+			res.added++
+		}
+	}
+
+	if replace && res.added == 0 {
+		return nil, fmt.Errorf("replace aborted: all %d rules were skipped, refusing to wipe database", len(rules))
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("committing import: %w", err)
+	}
+	return res, nil
+}
