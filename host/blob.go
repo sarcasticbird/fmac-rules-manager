@@ -66,7 +66,7 @@ func extractUUID(blob []byte) (string, error) {
 
 	// Scan forward from the marker to find a UUID pattern (36 chars: 8-4-4-4-12 hex)
 	searchStart := pos + len(markerIdentityMacAddonUUID)
-	for i := searchStart; i < len(blob)-36; i++ {
+	for i := searchStart; i+36 <= len(blob); i++ {
 		candidate := string(blob[i : i+36])
 		if isUUIDFormat(candidate) {
 			return candidate, nil
@@ -137,7 +137,7 @@ func buildBlob(template []byte, userContextID int, neverAsk bool) ([]byte, error
 		return nil, fmt.Errorf("identityMacAddonUUID marker not found in result")
 	}
 	searchStart := uuidPos + len(markerIdentityMacAddonUUID)
-	for j := searchStart; j < len(result)-36; j++ {
+	for j := searchStart; j+36 <= len(result); j++ {
 		if isUUIDFormat(string(result[j : j+36])) {
 			copy(result[j:j+36], []byte(newUUID))
 			break
@@ -181,6 +181,9 @@ func toggleNeverAsk(blob []byte, neverAsk bool) ([]byte, error) {
 	}
 
 	afterMarker := pos + len(markerNeverAsk)
+	if afterMarker+1 >= len(blob) {
+		return nil, fmt.Errorf("neverAsk: blob too short")
+	}
 	currentTrue := blob[afterMarker+1] != 0x00
 
 	if currentTrue == neverAsk {
